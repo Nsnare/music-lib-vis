@@ -16,7 +16,7 @@ import Canvas from './Canvas';
 import AudioPlayer from './AudioPlayer';
 import ClusterCreateModal from './ClusterCreateModal';
 
-type AuthState = 'loading' | 'unauthenticated' | 'authenticated';
+type AuthState = 'loading' | 'unauthenticated' | 'authenticated' | 'error';
 
 interface GhostState {
   trackId: string;
@@ -27,6 +27,7 @@ interface GhostState {
 
 export default function AppRoot() {
   const [authState, setAuthState] = useState<AuthState>('loading');
+  const [bootError, setBootError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [tracks, setTracks] = useState<CanvasTrack[]>([]);
   const [clusters, setClusters] = useState<Cluster[]>([]);
@@ -56,8 +57,9 @@ export default function AppRoot() {
         window.history.replaceState({}, '', '/');
         try {
           await exchangeCode(code);
-        } catch {
-          setAuthState('unauthenticated');
+        } catch (e) {
+          setBootError(`Auth failed: ${e instanceof Error ? e.message : String(e)}`);
+          setAuthState('error');
           return;
         }
       }
@@ -72,9 +74,11 @@ export default function AppRoot() {
         setToken(accessToken);
         await loadData(accessToken);
         setAuthState('authenticated');
-      } catch {
-        clearTokens();
-        setAuthState('unauthenticated');
+      } catch (e) {
+        // Don't clear tokens on data load failure — the user is still authenticated.
+        // Show an error so they can retry instead of losing their session.
+        setBootError(`Failed to load data: ${e instanceof Error ? e.message : String(e)}`);
+        setAuthState('error');
       }
     }
 
@@ -304,6 +308,20 @@ export default function AppRoot() {
 
   if (authState === 'loading') {
     return <div className="loading-screen">Loading…</div>;
+  }
+
+  if (authState === 'error') {
+    return (
+      <div className="loading-screen" style={{ flexDirection: 'column', gap: 12 }}>
+        <span style={{ color: '#e74c3c' }}>{bootError}</span>
+        <button
+          className="login-btn"
+          onClick={() => { clearTokens(); setAuthState('unauthenticated'); setBootError(null); }}
+        >
+          Try again
+        </button>
+      </div>
+    );
   }
 
   if (authState === 'unauthenticated') {

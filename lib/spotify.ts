@@ -28,7 +28,7 @@ function generateVerifier(): string {
 export async function initiateLogin(): Promise<void> {
   const verifier = generateVerifier();
   const challenge = base64url(await sha256(verifier));
-  sessionStorage.setItem('pkce_verifier', verifier);
+  localStorage.setItem('pkce_verifier', verifier);
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -43,8 +43,8 @@ export async function initiateLogin(): Promise<void> {
 }
 
 export async function exchangeCode(code: string): Promise<void> {
-  const verifier = sessionStorage.getItem('pkce_verifier');
-  if (!verifier) throw new Error('Missing PKCE verifier');
+  const verifier = localStorage.getItem('pkce_verifier');
+  if (!verifier) throw new Error('Missing PKCE verifier — please try logging in again');
 
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
@@ -62,7 +62,7 @@ export async function exchangeCode(code: string): Promise<void> {
 
   const data = await res.json();
   storeTokens(data);
-  sessionStorage.removeItem('pkce_verifier');
+  localStorage.removeItem('pkce_verifier');
 }
 
 function storeTokens(data: {
