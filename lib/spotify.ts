@@ -38,6 +38,7 @@ export async function initiateLogin(): Promise<void> {
     code_challenge_method: 'S256',
     code_challenge: challenge,
     scope: SCOPES,
+    show_dialog: 'true', // always show consent screen so new scopes are explicitly granted
   });
 
   window.location.href = `https://accounts.spotify.com/authorize?${params}`;
@@ -66,10 +67,13 @@ export async function exchangeCode(code: string): Promise<void> {
   localStorage.removeItem('pkce_verifier');
 }
 
+const REQUIRED_SCOPES = ['user-library-read', 'playlist-read-private', 'playlist-read-collaborative'];
+
 function storeTokens(data: {
   access_token: string;
   refresh_token?: string;
   expires_in: number;
+  scope?: string;
 }): void {
   localStorage.setItem('spotify_access_token', data.access_token);
   if (data.refresh_token) {
@@ -80,6 +84,15 @@ function storeTokens(data: {
     String(Date.now() + data.expires_in * 1000)
   );
   localStorage.setItem('spotify_scope_version', SCOPE_VERSION);
+  if (data.scope) {
+    localStorage.setItem('spotify_granted_scopes', data.scope);
+  }
+}
+
+function hasRequiredScopes(): boolean {
+  const granted = localStorage.getItem('spotify_granted_scopes') ?? '';
+  const grantedSet = new Set(granted.split(' '));
+  return REQUIRED_SCOPES.every((s) => grantedSet.has(s));
 }
 
 async function refreshToken(): Promise<string> {
@@ -121,12 +134,14 @@ export function clearTokens(): void {
   localStorage.removeItem('spotify_refresh_token');
   localStorage.removeItem('spotify_token_expiry');
   localStorage.removeItem('spotify_scope_version');
+  localStorage.removeItem('spotify_granted_scopes');
 }
 
 export function hasStoredToken(): boolean {
   return (
     !!localStorage.getItem('spotify_access_token') &&
-    localStorage.getItem('spotify_scope_version') === SCOPE_VERSION
+    localStorage.getItem('spotify_scope_version') === SCOPE_VERSION &&
+    hasRequiredScopes()
   );
 }
 
@@ -263,7 +278,10 @@ export async function fetchPlaylistTracks(
       await sleep(retryAfter * 1000);
       continue;
     }
-    if (res.status === 403) throw new Error(`This playlist isn't accessible via the Spotify API (403). Try a different playlist.`);
+    if (res.status === 403) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(`Spotify 403: ${body?.error?.message ?? 'access denied'}`);
+    }
     if (!res.ok) throw new Error(`Spotify API error ${res.status}`);
     const data = await res.json();
     for (const item of data.items ?? []) {
