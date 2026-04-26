@@ -91,7 +91,12 @@ export default function AppRoot() {
       fetch('/api/layout', { headers: { Authorization: `Bearer ${accessToken}` } }),
     ]);
 
-    const layout = layoutRes.ok ? await layoutRes.json() : { tracks: [], clusters: [], memberships: [] };
+    const rawLayout = layoutRes.ok ? await layoutRes.json().catch(() => ({})) : {};
+    const layout = {
+      tracks: rawLayout.tracks ?? [],
+      clusters: rawLayout.clusters ?? [],
+      memberships: rawLayout.memberships ?? [],
+    };
     const positionMap = new Map<string, { x: number; y: number }>(
       layout.tracks.map((t: { id: string; x: number; y: number }) => [t.id, { x: t.x, y: t.y }])
     );

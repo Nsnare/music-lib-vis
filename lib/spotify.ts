@@ -152,13 +152,21 @@ export async function fetchAllSavedTracks(token: string): Promise<SpotifyTrack[]
   const headers = { Authorization: `Bearer ${token}` };
   const limit = 50;
 
-  const first = await fetch(
+  const firstRes = await fetch(
     `https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=0`,
     { headers }
-  ).then((r) => r.json());
+  );
 
-  const total: number = first.total;
-  const tracks: SpotifyTrack[] = first.items.map(mapTrack);
+  if (!firstRes.ok) {
+    const err = await firstRes.json().catch(() => ({}));
+    throw new Error(
+      `Spotify API error ${firstRes.status}: ${err?.error?.message ?? firstRes.statusText}`
+    );
+  }
+
+  const first = await firstRes.json();
+  const total: number = first.total ?? 0;
+  const tracks: SpotifyTrack[] = (first.items ?? []).map(mapTrack);
 
   if (total > limit) {
     const offsets = Array.from(
@@ -169,11 +177,14 @@ export async function fetchAllSavedTracks(token: string): Promise<SpotifyTrack[]
       offsets.map((offset) =>
         fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
           headers,
-        }).then((r) => r.json())
+        }).then(async (r) => {
+          if (!r.ok) throw new Error(`Spotify API error ${r.status} at offset ${offset}`);
+          return r.json();
+        })
       )
     );
     for (const page of pages) {
-      tracks.push(...page.items.map(mapTrack));
+      tracks.push(...(page.items ?? []).map(mapTrack));
     }
   }
 
