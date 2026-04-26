@@ -217,7 +217,7 @@ export async function fetchUserPlaylists(token: string): Promise<SpotifyPlaylist
   const limit = 50;
   const playlists: SpotifyPlaylist[] = [];
   let url: string | null =
-    `https://api.spotify.com/v1/me/playlists?limit=${limit}`;
+    `https://api.spotify.com/v1/me/playlists?limit=${limit}&fields=next,items(id,name,images,tracks(total))`;
 
   while (url) {
     const res: Response = await fetch(url, { headers });
@@ -251,7 +251,7 @@ export async function fetchPlaylistTracks(
   const limit = 50;
   const tracks: SpotifyTrack[] = [];
   let url: string | null =
-    `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=${limit}&fields=next,items(track(id,name,artists,album(images),preview_url))`;
+    `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=${limit}`;
 
   while (url && tracks.length < TRACK_CAP) {
     const res: Response = await fetch(url, { headers });
