@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Music Library Visualizer",
-  description: "Visualize your music library",
+  description: "Arrange your Spotify saved tracks on a freeform canvas",
 };
 
 export default function RootLayout({
