@@ -149,6 +149,11 @@ function mapTrack(item: RawSavedTrack): SpotifyTrack {
 }
 
 const TRACK_CAP = 500; // canvas gets unwieldy beyond this
+const PAGE_DELAY_MS = 200; // pause between pages to stay under rate limit
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function fetchPage(
   token: string,
@@ -159,6 +164,13 @@ async function fetchPage(
     `https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
+
+  if (res.status === 429) {
+    const retryAfter = Number(res.headers.get('Retry-After') ?? '5');
+    await sleep(retryAfter * 1000);
+    return fetchPage(token, offset, limit); // one retry after waiting
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(
@@ -174,9 +186,9 @@ export async function fetchAllSavedTracks(token: string): Promise<SpotifyTrack[]
   const total = Math.min(first.total ?? 0, TRACK_CAP);
   const tracks: SpotifyTrack[] = (first.items ?? []).map(mapTrack);
 
-  // Fetch remaining pages sequentially to avoid rate-limiting
   let offset = limit;
   while (offset < total) {
+    await sleep(PAGE_DELAY_MS);
     const page = await fetchPage(token, offset, limit);
     tracks.push(...(page.items ?? []).map(mapTrack));
     offset += limit;
