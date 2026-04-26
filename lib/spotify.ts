@@ -220,7 +220,7 @@ export async function fetchUserPlaylists(token: string): Promise<SpotifyPlaylist
     `https://api.spotify.com/v1/me/playlists?limit=${limit}`;
 
   while (url) {
-    const res = await fetch(url, { headers });
+    const res: Response = await fetch(url, { headers });
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get('Retry-After') ?? '5');
       await sleep(retryAfter * 1000);
@@ -254,7 +254,7 @@ export async function fetchPlaylistTracks(
     `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=${limit}&fields=next,items(track(id,name,artists,album(images),preview_url))`;
 
   while (url && tracks.length < TRACK_CAP) {
-    const res = await fetch(url, { headers });
+    const res: Response = await fetch(url, { headers });
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get('Retry-After') ?? '5');
       await sleep(retryAfter * 1000);
