@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   exchangeCode,
+  fetchCurrentUserId,
   fetchPlaylistTracks,
   fetchUserPlaylists,
   getAccessToken,
@@ -80,7 +81,8 @@ export default function AppRoot() {
       try {
         const accessToken = await getAccessToken();
         setToken(accessToken);
-        const userPlaylists = await fetchUserPlaylists(accessToken);
+        const userId = await fetchCurrentUserId(accessToken);
+        const userPlaylists = await fetchUserPlaylists(accessToken, userId);
         setPlaylists(userPlaylists);
         setAuthState('picking-playlist');
       } catch (e) {

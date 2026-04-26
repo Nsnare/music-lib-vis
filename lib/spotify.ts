@@ -145,6 +145,17 @@ export function hasStoredToken(): boolean {
   );
 }
 
+// ── Current user ─────────────────────────────────────────────────────────────
+
+export async function fetchCurrentUserId(token: string): Promise<string> {
+  const res = await fetch('https://api.spotify.com/v1/me', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Spotify /me error ${res.status}`);
+  const data = await res.json();
+  return data.id as string;
+}
+
 // ── Spotify API ───────────────────────────────────────────────────────────────
 
 interface RawSavedTrack {
@@ -227,7 +238,10 @@ export interface SpotifyPlaylist {
   trackCount: number;
 }
 
-export async function fetchUserPlaylists(token: string): Promise<SpotifyPlaylist[]> {
+export async function fetchUserPlaylists(
+  token: string,
+  currentUserId: string
+): Promise<SpotifyPlaylist[]> {
   const headers = { Authorization: `Bearer ${token}` };
   const limit = 50;
   const playlists: SpotifyPlaylist[] = [];
@@ -244,9 +258,17 @@ export async function fetchUserPlaylists(token: string): Promise<SpotifyPlaylist
     if (!res.ok) throw new Error(`Spotify API error ${res.status}`);
     const data = await res.json();
     for (const p of data.items ?? []) {
-      // Skip Spotify-generated playlists (Daily Mix, Discover Weekly, etc.)
-      // — their tracks endpoint returns 403 by design
-      if (!p.id || p.owner?.id === 'spotify') continue;
+      if (!p.id) continue;
+      // Only include playlists we can actually read tracks from:
+      // - Playlists owned by the current user (public or private)
+      // - Public playlists owned by others
+      // - Collaborative playlists (readable via playlist-read-collaborative)
+      // Excludes: Spotify-owned playlists + private playlists owned by others
+      const ownedByMe = p.owner?.id === currentUserId;
+      const isPublic = p.public === true;
+      const isCollaborative = p.collaborative === true;
+      if (!ownedByMe && !isPublic && !isCollaborative) continue;
+      if (p.owner?.id === 'spotify') continue;
       playlists.push({
         id: p.id,
         name: p.name,
