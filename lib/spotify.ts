@@ -148,44 +148,38 @@ function mapTrack(item: RawSavedTrack): SpotifyTrack {
   };
 }
 
-export async function fetchAllSavedTracks(token: string): Promise<SpotifyTrack[]> {
-  const headers = { Authorization: `Bearer ${token}` };
-  const limit = 50;
+const TRACK_CAP = 500; // canvas gets unwieldy beyond this
 
-  const firstRes = await fetch(
-    `https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=0`,
-    { headers }
+async function fetchPage(
+  token: string,
+  offset: number,
+  limit: number
+): Promise<{ items: RawSavedTrack[]; total: number }> {
+  const res = await fetch(
+    `https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}` } }
   );
-
-  if (!firstRes.ok) {
-    const err = await firstRes.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
     throw new Error(
-      `Spotify API error ${firstRes.status}: ${err?.error?.message ?? firstRes.statusText}`
+      `Spotify API error ${res.status}: ${err?.error?.message ?? res.statusText}`
     );
   }
+  return res.json();
+}
 
-  const first = await firstRes.json();
-  const total: number = first.total ?? 0;
+export async function fetchAllSavedTracks(token: string): Promise<SpotifyTrack[]> {
+  const limit = 50;
+  const first = await fetchPage(token, 0, limit);
+  const total = Math.min(first.total ?? 0, TRACK_CAP);
   const tracks: SpotifyTrack[] = (first.items ?? []).map(mapTrack);
 
-  if (total > limit) {
-    const offsets = Array.from(
-      { length: Math.ceil((total - limit) / limit) },
-      (_, i) => (i + 1) * limit
-    );
-    const pages = await Promise.all(
-      offsets.map((offset) =>
-        fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
-          headers,
-        }).then(async (r) => {
-          if (!r.ok) throw new Error(`Spotify API error ${r.status} at offset ${offset}`);
-          return r.json();
-        })
-      )
-    );
-    for (const page of pages) {
-      tracks.push(...(page.items ?? []).map(mapTrack));
-    }
+  // Fetch remaining pages sequentially to avoid rate-limiting
+  let offset = limit;
+  while (offset < total) {
+    const page = await fetchPage(token, offset, limit);
+    tracks.push(...(page.items ?? []).map(mapTrack));
+    offset += limit;
   }
 
   return tracks;
