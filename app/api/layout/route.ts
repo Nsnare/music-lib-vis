@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { getUserId, SpotifyAuthError } from '@/lib/auth';
-import type { LayoutData } from '@/types';
+import type { Cluster, Membership } from '@/types';
 
 function bearerToken(req: NextRequest): string {
   return req.headers.get('Authorization')?.slice(7) ?? '';
@@ -22,7 +22,11 @@ export async function GET(req: NextRequest) {
     sql`SELECT track_id AS "trackId", cluster_id AS "clusterId" FROM memberships WHERE user_id = ${userId}`,
   ]);
 
-  return NextResponse.json({ tracks, clusters, memberships } satisfies LayoutData);
+  return NextResponse.json({
+    tracks: tracks as { id: string; x: number; y: number }[],
+    clusters: clusters as Cluster[],
+    memberships: memberships as Membership[],
+  });
 }
 
 export async function POST(req: NextRequest) {
