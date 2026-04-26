@@ -280,7 +280,12 @@ export async function fetchPlaylistTracks(
     }
     if (res.status === 403) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(`Spotify 403: ${body?.error?.message ?? 'access denied'}`);
+      const granted = typeof localStorage !== 'undefined'
+        ? localStorage.getItem('spotify_granted_scopes') ?? '(none stored)'
+        : '(not in browser)';
+      throw new Error(
+        `Spotify 403 on ${url}\nBody: ${JSON.stringify(body)}\nGranted scopes: ${granted}`
+      );
     }
     if (!res.ok) throw new Error(`Spotify API error ${res.status}`);
     const data = await res.json();

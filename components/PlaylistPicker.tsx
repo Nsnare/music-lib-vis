@@ -19,6 +19,11 @@ export default function PlaylistPicker({ playlists, onSelect, onReauthorize }: P
           </button>
         </div>
         <p>Tracks will be loaded onto the canvas (up to 500 per playlist)</p>
+        <p style={{ fontSize: 10, color: '#555', marginTop: 4, wordBreak: 'break-all' }}>
+          Scopes: {typeof window !== 'undefined'
+            ? (localStorage.getItem('spotify_granted_scopes') ?? '(none)')
+            : '…'}
+        </p>
       </div>
       <div className="playlist-grid">
         {playlists.map((p) => (
