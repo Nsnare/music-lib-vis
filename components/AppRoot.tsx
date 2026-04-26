@@ -345,15 +345,25 @@ export default function AppRoot() {
   }
 
   if (authState === 'error') {
+    const canRetryPlaylist = !!playlists.length;
     return (
       <div className="loading-screen" style={{ flexDirection: 'column', gap: 12 }}>
-        <span style={{ color: '#e74c3c' }}>{bootError}</span>
-        <button
-          className="login-btn"
-          onClick={() => { clearTokens(); setAuthState('unauthenticated'); setBootError(null); }}
-        >
-          Try again
-        </button>
+        <span style={{ color: '#e74c3c', maxWidth: 400, textAlign: 'center' }}>{bootError}</span>
+        {canRetryPlaylist ? (
+          <button
+            className="login-btn"
+            onClick={() => { setBootError(null); setAuthState('picking-playlist'); }}
+          >
+            Choose a different playlist
+          </button>
+        ) : (
+          <button
+            className="login-btn"
+            onClick={() => { clearTokens(); setAuthState('unauthenticated'); setBootError(null); }}
+          >
+            Try again
+          </button>
+        )}
       </div>
     );
   }

@@ -217,7 +217,7 @@ export async function fetchUserPlaylists(token: string): Promise<SpotifyPlaylist
   const limit = 50;
   const playlists: SpotifyPlaylist[] = [];
   let url: string | null =
-    `https://api.spotify.com/v1/me/playlists?limit=${limit}&fields=next,items(id,name,images,tracks(total))`;
+    `https://api.spotify.com/v1/me/playlists?limit=${limit}`;
 
   while (url) {
     const res: Response = await fetch(url, { headers });
@@ -229,6 +229,9 @@ export async function fetchUserPlaylists(token: string): Promise<SpotifyPlaylist
     if (!res.ok) throw new Error(`Spotify API error ${res.status}`);
     const data = await res.json();
     for (const p of data.items ?? []) {
+      // Skip Spotify-generated playlists (Daily Mix, Discover Weekly, etc.)
+      // — their tracks endpoint returns 403 by design
+      if (!p.id || p.owner?.id === 'spotify') continue;
       playlists.push({
         id: p.id,
         name: p.name,
@@ -260,6 +263,7 @@ export async function fetchPlaylistTracks(
       await sleep(retryAfter * 1000);
       continue;
     }
+    if (res.status === 403) throw new Error(`This playlist isn't accessible via the Spotify API (403). Try a different playlist.`);
     if (!res.ok) throw new Error(`Spotify API error ${res.status}`);
     const data = await res.json();
     for (const item of data.items ?? []) {
