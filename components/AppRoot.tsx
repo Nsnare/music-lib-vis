@@ -70,6 +70,9 @@ export default function AppRoot() {
       }
 
       if (!hasStoredToken()) {
+        // Covers expired tokens, missing scope version, and missing required scopes.
+        // Always clear so the login screen triggers a fresh PKCE flow with show_dialog=true.
+        clearTokens();
         setAuthState('unauthenticated');
         return;
       }
@@ -333,7 +336,13 @@ export default function AppRoot() {
   }
 
   if (authState === 'picking-playlist') {
-    return <PlaylistPicker playlists={playlists} onSelect={handlePlaylistSelect} />;
+    return (
+      <PlaylistPicker
+        playlists={playlists}
+        onSelect={handlePlaylistSelect}
+        onReauthorize={() => { clearTokens(); setAuthState('unauthenticated'); }}
+      />
+    );
   }
 
   if (authState === 'loading-tracks') {

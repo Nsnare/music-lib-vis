@@ -5,13 +5,19 @@ import type { SpotifyPlaylist } from '@/lib/spotify';
 interface Props {
   playlists: SpotifyPlaylist[];
   onSelect: (playlist: SpotifyPlaylist) => void;
+  onReauthorize: () => void;
 }
 
-export default function PlaylistPicker({ playlists, onSelect }: Props) {
+export default function PlaylistPicker({ playlists, onSelect, onReauthorize }: Props) {
   return (
     <div className="playlist-picker">
       <div className="playlist-picker-header">
-        <h2>Choose a playlist</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <h2 style={{ margin: 0 }}>Choose a playlist</h2>
+          <button className="reauth-btn" onClick={onReauthorize} title="Re-authorize Spotify">
+            Re-authorize Spotify
+          </button>
+        </div>
         <p>Tracks will be loaded onto the canvas (up to 500 per playlist)</p>
       </div>
       <div className="playlist-grid">
