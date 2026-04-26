@@ -3,20 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   exchangeCode,
-  fetchAllSavedTracks,
+  fetchPlaylistTracks,
+  fetchUserPlaylists,
   getAccessToken,
   clearTokens,
   hasStoredToken,
+  type SpotifyPlaylist,
 } from '@/lib/spotify';
 import { nanoid } from '@/lib/nanoid';
 import type { CanvasTrack, Cluster, Membership } from '@/types';
 import LoginScreen from './LoginScreen';
+import PlaylistPicker from './PlaylistPicker';
 import Sidebar from './Sidebar';
 import Canvas from './Canvas';
 import AudioPlayer from './AudioPlayer';
 import ClusterCreateModal from './ClusterCreateModal';
 
-type AuthState = 'loading' | 'unauthenticated' | 'authenticated' | 'error';
+type AuthState = 'loading' | 'unauthenticated' | 'picking-playlist' | 'loading-tracks' | 'authenticated' | 'error';
 
 interface GhostState {
   trackId: string;
@@ -29,6 +32,8 @@ export default function AppRoot() {
   const [authState, setAuthState] = useState<AuthState>('loading');
   const [bootError, setBootError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [playlists, setPlaylists] = useState<SpotifyPlaylist[]>([]);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<SpotifyPlaylist | null>(null);
   const [tracks, setTracks] = useState<CanvasTrack[]>([]);
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -72,12 +77,11 @@ export default function AppRoot() {
       try {
         const accessToken = await getAccessToken();
         setToken(accessToken);
-        await loadData(accessToken);
-        setAuthState('authenticated');
+        const userPlaylists = await fetchUserPlaylists(accessToken);
+        setPlaylists(userPlaylists);
+        setAuthState('picking-playlist');
       } catch (e) {
-        // Don't clear tokens on data load failure — the user is still authenticated.
-        // Show an error so they can retry instead of losing their session.
-        setBootError(`Failed to load data: ${e instanceof Error ? e.message : String(e)}`);
+        setBootError(`Failed to load playlists: ${e instanceof Error ? e.message : String(e)}`);
         setAuthState('error');
       }
     }
@@ -85,9 +89,22 @@ export default function AppRoot() {
     boot();
   }, []);
 
-  async function loadData(accessToken: string) {
+  async function handlePlaylistSelect(playlist: SpotifyPlaylist) {
+    if (!token) return;
+    setSelectedPlaylist(playlist);
+    setAuthState('loading-tracks');
+    try {
+      await loadData(token, playlist.id);
+      setAuthState('authenticated');
+    } catch (e) {
+      setBootError(`Failed to load tracks: ${e instanceof Error ? e.message : String(e)}`);
+      setAuthState('error');
+    }
+  }
+
+  async function loadData(accessToken: string, playlistId: string) {
     const [spotifyTracks, layoutRes] = await Promise.all([
-      fetchAllSavedTracks(accessToken),
+      fetchPlaylistTracks(accessToken, playlistId),
       fetch('/api/layout', { headers: { Authorization: `Bearer ${accessToken}` } }),
     ]);
 
@@ -313,6 +330,18 @@ export default function AppRoot() {
 
   if (authState === 'loading') {
     return <div className="loading-screen">Loading…</div>;
+  }
+
+  if (authState === 'picking-playlist') {
+    return <PlaylistPicker playlists={playlists} onSelect={handlePlaylistSelect} />;
+  }
+
+  if (authState === 'loading-tracks') {
+    return (
+      <div className="loading-screen">
+        Loading {selectedPlaylist?.name ?? 'playlist'}…
+      </div>
+    );
   }
 
   if (authState === 'error') {

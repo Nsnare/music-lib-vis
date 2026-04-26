@@ -2,7 +2,8 @@ import type { SpotifyTrack } from '@/types';
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID!;
 const REDIRECT_URI = process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI!;
-const SCOPES = 'user-library-read';
+const SCOPES = 'user-library-read playlist-read-private playlist-read-collaborative';
+const SCOPE_VERSION = 'v2'; // bump when scopes change to force re-auth
 
 // ── PKCE helpers ─────────────────────────────────────────────────────────────
 
@@ -78,6 +79,7 @@ function storeTokens(data: {
     'spotify_token_expiry',
     String(Date.now() + data.expires_in * 1000)
   );
+  localStorage.setItem('spotify_scope_version', SCOPE_VERSION);
 }
 
 async function refreshToken(): Promise<string> {
@@ -118,10 +120,14 @@ export function clearTokens(): void {
   localStorage.removeItem('spotify_access_token');
   localStorage.removeItem('spotify_refresh_token');
   localStorage.removeItem('spotify_token_expiry');
+  localStorage.removeItem('spotify_scope_version');
 }
 
 export function hasStoredToken(): boolean {
-  return !!localStorage.getItem('spotify_access_token');
+  return (
+    !!localStorage.getItem('spotify_access_token') &&
+    localStorage.getItem('spotify_scope_version') === SCOPE_VERSION
+  );
 }
 
 // ── Spotify API ───────────────────────────────────────────────────────────────
@@ -192,6 +198,75 @@ export async function fetchAllSavedTracks(token: string): Promise<SpotifyTrack[]
     const page = await fetchPage(token, offset, limit);
     tracks.push(...(page.items ?? []).map(mapTrack));
     offset += limit;
+  }
+
+  return tracks;
+}
+
+// ── Playlists ─────────────────────────────────────────────────────────────────
+
+export interface SpotifyPlaylist {
+  id: string;
+  name: string;
+  imageUrl: string;
+  trackCount: number;
+}
+
+export async function fetchUserPlaylists(token: string): Promise<SpotifyPlaylist[]> {
+  const headers = { Authorization: `Bearer ${token}` };
+  const limit = 50;
+  const playlists: SpotifyPlaylist[] = [];
+  let url: string | null =
+    `https://api.spotify.com/v1/me/playlists?limit=${limit}`;
+
+  while (url) {
+    const res = await fetch(url, { headers });
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get('Retry-After') ?? '5');
+      await sleep(retryAfter * 1000);
+      continue;
+    }
+    if (!res.ok) throw new Error(`Spotify API error ${res.status}`);
+    const data = await res.json();
+    for (const p of data.items ?? []) {
+      playlists.push({
+        id: p.id,
+        name: p.name,
+        imageUrl: p.images?.[0]?.url ?? '',
+        trackCount: p.tracks?.total ?? 0,
+      });
+    }
+    url = data.next ?? null;
+    if (url) await sleep(PAGE_DELAY_MS);
+  }
+
+  return playlists;
+}
+
+export async function fetchPlaylistTracks(
+  token: string,
+  playlistId: string
+): Promise<SpotifyTrack[]> {
+  const headers = { Authorization: `Bearer ${token}` };
+  const limit = 50;
+  const tracks: SpotifyTrack[] = [];
+  let url: string | null =
+    `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=${limit}&fields=next,items(track(id,name,artists,album(images),preview_url))`;
+
+  while (url && tracks.length < TRACK_CAP) {
+    const res = await fetch(url, { headers });
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get('Retry-After') ?? '5');
+      await sleep(retryAfter * 1000);
+      continue;
+    }
+    if (!res.ok) throw new Error(`Spotify API error ${res.status}`);
+    const data = await res.json();
+    for (const item of data.items ?? []) {
+      if (item.track?.id) tracks.push(mapTrack(item));
+    }
+    url = data.next ?? null;
+    if (url) await sleep(PAGE_DELAY_MS);
   }
 
   return tracks;
