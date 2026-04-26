@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { getUserId, SpotifyAuthError } from '@/lib/auth';
-import type { Cluster, Membership } from '@/types';
+import type { Cluster, LayoutData, Membership } from '@/types';
 
 function bearerToken(req: NextRequest): string {
   return req.headers.get('Authorization')?.slice(7) ?? '';
